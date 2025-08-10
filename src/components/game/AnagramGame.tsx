@@ -16,10 +16,14 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function pickWord(min = 3, max = 8, used: Set<string>) {
-  const pool = WORDS.filter((w) => w.length >= min && w.length <= max && !used.has(w.toLowerCase()));
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)].toLowerCase();
+function pickWordByTargetLen(targetLen: number, used: Set<string>) {
+  const exact = WORDS.filter((w) => w.length === targetLen && !used.has(w.toLowerCase()));
+  if (exact.length) return exact[Math.floor(Math.random() * exact.length)].toLowerCase();
+  const fallback = WORDS.filter((w) => w.length >= 3 && w.length <= targetLen && !used.has(w.toLowerCase()));
+  if (fallback.length) return fallback[Math.floor(Math.random() * fallback.length)].toLowerCase();
+  const any = WORDS.filter((w) => !used.has(w.toLowerCase()));
+  if (any.length === 0) return null;
+  return any[Math.floor(Math.random() * any.length)].toLowerCase();
 }
 
 export default function AnagramGame() {
@@ -39,7 +43,11 @@ export default function AnagramGame() {
 
   // Load a new round
   const loadNewRound = useCallback(() => {
-    const word = pickWord(3, 8, usedWords.current);
+    // Determine difficulty based on rounds played: +1 letter every 2 rounds (3→8)
+    const nextRound = usedWords.current.size + 1;
+    const targetLen = Math.min(3 + Math.floor((nextRound - 1) / 2), 8);
+
+    const word = pickWordByTargetLen(targetLen, usedWords.current);
     if (!word) {
       // if we run out of words
       setGameOver(true);
@@ -48,9 +56,9 @@ export default function AnagramGame() {
     usedWords.current.add(word);
     setSolution(word);
 
-    let letters = word.split("");
+    const letters: string[] = word.split("");
     // ensure the scramble isn't identical
-    let shuffled = shuffle(letters);
+    let shuffled: string[] = shuffle(letters);
     let attempts = 0;
     while (shuffled.join("") === word && attempts < 5) {
       shuffled = shuffle(letters);
@@ -59,7 +67,6 @@ export default function AnagramGame() {
     setScrambled(shuffled);
     setGuess([]);
     setUsedIndices(new Set());
-    setTimeLeft(ROUND_TIME);
   }, []);
 
   // Timer
@@ -76,14 +83,14 @@ export default function AnagramGame() {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [round, gameOver]);
+  }, [gameOver]);
 
   // Initial round
   useEffect(() => {
     loadNewRound();
   }, [loadNewRound]);
 
-  const progressValue = useMemo(() => (timeLeft / ROUND_TIME) * 100, [timeLeft]);
+  const progressValue = useMemo(() => Math.min(100, (timeLeft / ROUND_TIME) * 100), [timeLeft]);
 
   const onTileClick = (letter: string, index: number) => {
     if (gameOver) return;
@@ -127,6 +134,7 @@ export default function AnagramGame() {
         title: "Correct!",
         description: `+${gained} points`,
       });
+      setTimeLeft((t) => t + 10);
       setRound((r) => r + 1);
       loadNewRound();
     } else {
@@ -141,6 +149,7 @@ export default function AnagramGame() {
     usedWords.current = new Set();
     setScore(0);
     setRound(1);
+    setTimeLeft(ROUND_TIME);
     setGameOver(false);
     loadNewRound();
   };
@@ -225,6 +234,7 @@ export default function AnagramGame() {
             ) : (
               <div className="text-center py-8">
                 <h2 className="text-2xl font-semibold">Time's up!</h2>
+                <p className="mt-2">The word was: <span className="font-semibold">{solution.toUpperCase()}</span></p>
                 <p className="mt-2 text-muted-foreground">Final score: {score}</p>
                 <div className="mt-6">
                   <Button size="lg" onClick={restart}>Play again</Button>
