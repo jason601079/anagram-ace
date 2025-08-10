@@ -7,7 +7,7 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  :root {
+:root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -39,23 +39,24 @@ All colors MUST be HSL.
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Extended design tokens */
+    --primary-glow: 222.2 87% 59%;
+    --accent-glow: 210 90% 60%;
+    --gradient-hero: radial-gradient(800px 400px at 20% 10%, hsl(var(--accent) / 0.25), transparent 60%),
+                      radial-gradient(800px 400px at 80% 30%, hsl(var(--primary) / 0.25), transparent 60%);
+    --shadow-elegant: 0 12px 30px -10px hsl(var(--primary) / 0.25);
+    --shadow-glow: 0 0 40px hsl(var(--accent) / 0.3);
   }
 
-  .dark {
+.dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
@@ -91,6 +92,14 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Extended tokens (dark) */
+    --primary-glow: 224.3 76.3% 48%;
+    --accent-glow: 217.2 91.2% 59.8%;
+    --gradient-hero: radial-gradient(800px 400px at 15% 15%, hsl(var(--accent) / 0.2), transparent 60%),
+                      radial-gradient(800px 400px at 85% 25%, hsl(var(--primary) / 0.2), transparent 60%);
+    --shadow-elegant: 0 12px 30px -10px hsl(var(--primary) / 0.3);
+    --shadow-glow: 0 0 40px hsl(var(--accent) / 0.35);
   }
 }
 
@@ -101,5 +110,25 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Components/Utilities layer */
+@layer components {
+  .ambient-blob {
+    position: absolute;
+    inset: -10% -10%;
+    background-image: var(--gradient-hero);
+    filter: blur(60px);
+    opacity: 0.7;
+    animation: blob 16s ease-in-out infinite;
+  }
+}
+
+@layer utilities {
+  @keyframes blob {
+    0%, 100% { transform: translate3d(0,0,0) scale(1); }
+    33% { transform: translate3d(3%, -2%, 0) scale(1.05); }
+    66% { transform: translate3d(-2%, 3%, 0) scale(0.98); }
   }
 }
