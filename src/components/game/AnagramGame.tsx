@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { WORDS } from "@/data/words";
 
 const ROUND_TIME = 30; // seconds per round
+const MAX_TIME = 60; // cap time at one minute
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -33,6 +34,7 @@ export default function AnagramGame() {
   const [round, setRound] = useState(1);
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME);
   const [gameOver, setGameOver] = useState(false);
+  const [started, setStarted] = useState(false);
 
   const usedWords = useRef<Set<string>>(new Set());
 
@@ -71,7 +73,7 @@ export default function AnagramGame() {
 
   // Timer
   useEffect(() => {
-    if (gameOver) return;
+    if (gameOver || !started) return;
     const id = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -83,12 +85,33 @@ export default function AnagramGame() {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [gameOver]);
+  }, [gameOver, started]);
 
-  // Initial round
+  // Initial round (after start)
   useEffect(() => {
-    loadNewRound();
-  }, [loadNewRound]);
+    if (started) {
+      loadNewRound();
+    }
+  }, [started, loadNewRound]);
+
+  // Persist score history when game ends
+  useEffect(() => {
+    if (!gameOver || !started) return;
+    try {
+      const HISTORY_KEY = "anagram_history_v1";
+      const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      const entry = {
+        id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now()),
+        timestamp: Date.now(),
+        score,
+        rounds: Math.max(1, round - 1),
+        lastWord: solution.toUpperCase(),
+      };
+      const next = [entry, ...existing].slice(0, 50);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      window.dispatchEvent(new Event("anagram-history-updated"));
+    } catch {}
+  }, [gameOver, started, score, round, solution]);
 
   const progressValue = useMemo(() => Math.min(100, (timeLeft / ROUND_TIME) * 100), [timeLeft]);
 
@@ -134,7 +157,7 @@ export default function AnagramGame() {
         title: "Correct!",
         description: `+${gained} points`,
       });
-      setTimeLeft((t) => t + 10);
+      setTimeLeft((t) => Math.min(MAX_TIME, t + 10));
       setRound((r) => r + 1);
       loadNewRound();
     } else {
@@ -179,67 +202,76 @@ export default function AnagramGame() {
             <CardDescription>Form the correct word from the scrambled letters.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-3">
-              <Progress value={progressValue} />
-              <div className="mt-1 text-right text-xs text-muted-foreground">{timeLeft}s</div>
-            </div>
-
-            {!gameOver ? (
-              <div className="space-y-6">
-                {/* Scrambled tiles */}
-                <div className="flex flex-wrap justify-center gap-2">
-                  {scrambled.map((ch, idx) => {
-                    const used = usedIndices.has(idx);
-                    return (
-                      <Button
-                        key={`${ch}-${idx}`}
-                        variant={used ? "outline" : "secondary"}
-                        size="lg"
-                        className={`w-12 h-12 text-xl font-semibold rounded-lg transition-transform will-change-transform hover:scale-105 ${used ? "opacity-50" : ""}`}
-                        onClick={() => onTileClick(ch, idx)}
-                        aria-pressed={used}
-                        aria-label={`Letter ${ch}`}
-                      >
-                        {ch.toUpperCase()}
-                      </Button>
-                    );
-                  })}
-                </div>
-
-                {/* Guess row */}
-                <div className="flex flex-wrap justify-center gap-2">
-                  {Array.from({ length: solution.length }).map((_, i) => (
-                    <Button
-                      key={`g-${i}`}
-                      variant={guess[i] ? "secondary" : "outline"}
-                      size="lg"
-                      className="w-12 h-12 text-xl font-semibold rounded-lg"
-                      onClick={() => (guess[i] ? onGuessLetterClick(i) : undefined)}
-                      aria-label={guess[i] ? `Remove ${guess[i]}` : "Empty"}
-                    >
-                      {guess[i] ? guess[i].toUpperCase() : ""}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex justify-center gap-3">
-                  <Button onClick={checkGuess} disabled={guess.length !== solution.length}>
-                    Submit
-                  </Button>
-                  <Button variant="outline" onClick={clearGuess}>
-                    Clear
-                  </Button>
-                </div>
+            {!started ? (
+              <div className="text-center py-10 space-y-4">
+                <p className="text-muted-foreground">Unscramble the word before the timer runs out.</p>
+                <Button size="lg" onClick={() => setStarted(true)}>Start Game</Button>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <h2 className="text-2xl font-semibold">Time's up!</h2>
-                <p className="mt-2">The word was: <span className="font-semibold">{solution.toUpperCase()}</span></p>
-                <p className="mt-2 text-muted-foreground">Final score: {score}</p>
-                <div className="mt-6">
-                  <Button size="lg" onClick={restart}>Play again</Button>
+              <>
+                <div className="mb-3">
+                  <Progress value={progressValue} />
+                  <div className="mt-1 text-right text-xs text-muted-foreground">{timeLeft}s</div>
                 </div>
-              </div>
+
+                {!gameOver ? (
+                  <div className="space-y-6">
+                    {/* Scrambled tiles */}
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {scrambled.map((ch, idx) => {
+                        const used = usedIndices.has(idx);
+                        return (
+                          <Button
+                            key={`${ch}-${idx}`}
+                            variant={used ? "outline" : "secondary"}
+                            size="lg"
+                            className={`w-12 h-12 text-xl font-semibold rounded-lg transition-transform will-change-transform hover:scale-105 ${used ? "opacity-50" : ""}`}
+                            onClick={() => onTileClick(ch, idx)}
+                            aria-pressed={used}
+                            aria-label={`Letter ${ch}`}
+                          >
+                            {ch.toUpperCase()}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Guess row */}
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {Array.from({ length: solution.length }).map((_, i) => (
+                        <Button
+                          key={`g-${i}`}
+                          variant={guess[i] ? "secondary" : "outline"}
+                          size="lg"
+                          className="w-12 h-12 text-xl font-semibold rounded-lg"
+                          onClick={() => (guess[i] ? onGuessLetterClick(i) : undefined)}
+                          aria-label={guess[i] ? `Remove ${guess[i]}` : "Empty"}
+                        >
+                          {guess[i] ? guess[i].toUpperCase() : ""}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-center gap-3">
+                      <Button onClick={checkGuess} disabled={guess.length !== solution.length}>
+                        Submit
+                      </Button>
+                      <Button variant="outline" onClick={clearGuess}>
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <h2 className="text-2xl font-semibold">Time's up!</h2>
+                    <p className="mt-2">The word was: <span className="font-semibold">{solution.toUpperCase()}</span></p>
+                    <p className="mt-2 text-muted-foreground">Final score: {score}</p>
+                    <div className="mt-6">
+                      <Button size="lg" onClick={restart}>Play again</Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
